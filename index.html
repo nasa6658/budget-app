@@ -1,51 +1,176 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>簡易記帳</title>
-
-<link rel="stylesheet" href="styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>簡易記帳 PWA</title>
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="stylesheet" href="styles.css">
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+header {
+  background: #4CAF50;
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+  font-size: 1.5rem;
+}
+main {
+  padding: 1rem;
+}
+button {
+  margin: 0.25rem;
+  padding: 0.5rem 1rem;
+}
+.record {
+  border-bottom: 1px solid #ccc;
+  padding: 0.5rem 0;
+}
+.fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 1000;
+}
+.calculator {
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  background: #fff;
+  border: 1px solid #ccc;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  padding: 10px;
+  display: none;
+  z-index: 999;
+}
+.calc-display {
+  width: 100%;
+  text-align: right;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  padding: 5px;
+  border: 1px solid #ccc;
+}
+.calc-buttons button {
+  width: 20%;
+  margin: 2px;
+  padding: 10px;
+  font-size: 1rem;
+}
+</style>
+</head>
+<body>
+
+<header>
+簡易記帳
+</header>
+
+<main>
+  <button id="addExpenseBtn">新增記帳</button>
+  <div id="records"></div>
+</main>
+
+<!-- 計算機 -->
+<button class="fab" id="toggleCalc">+</button>
+<div class="calculator" id="calculator">
+  <input type="text" class="calc-display" id="calcDisplay" readonly>
+  <div class="calc-buttons">
+    <button>7</button><button>8</button><button>9</button><button>/</button><button>C</button><br>
+    <button>4</button><button>5</button><button>6</button><button>*</button><button>←</button><br>
+    <button>1</button><button>2</button><button>3</button><button>-</button><button>.</button><br>
+    <button>0</button><button>=</button><button>+</button>
+  </div>
+</div>
 
 <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js')
-      .then(() => console.log("✅ Service Worker 已註冊"))
-      .catch(err => console.error("❌ Service Worker 註冊失敗", err));
+// 記帳
+const addExpenseBtn = document.getElementById('addExpenseBtn');
+const recordsDiv = document.getElementById('records');
+let records = JSON.parse(localStorage.getItem('records') || '[]');
+
+function renderRecords() {
+  recordsDiv.innerHTML = '';
+  records.forEach((r, idx) => {
+    const div = document.createElement('div');
+    div.className = 'record';
+    div.innerHTML = `
+      ${r.date} - ${r.name} : $${r.amount} (${r.note || ''})
+      <button onclick="deleteRecord(${idx})">刪除</button>
+    `;
+    recordsDiv.appendChild(div);
+  });
+}
+
+function deleteRecord(index) {
+  if (confirm('確定刪除這筆記帳嗎？')) {
+    records.splice(index, 1);
+    localStorage.setItem('records', JSON.stringify(records));
+    renderRecords();
   }
+}
+
+addExpenseBtn.onclick = () => {
+  const name = prompt('花費名稱');
+  const amount = parseFloat(prompt('金額'));
+  const note = prompt('備註');
+  if (!name || isNaN(amount)) return;
+  const date = new Date().toLocaleString();
+  records.push({ date, name, amount, note });
+  localStorage.setItem('records', JSON.stringify(records));
+  renderRecords();
+};
+
+renderRecords();
+
+// PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+
+// 計算機
+const toggleCalc = document.getElementById('toggleCalc');
+const calculator = document.getElementById('calculator');
+const calcDisplay = document.getElementById('calcDisplay');
+const calcButtons = calculator.querySelectorAll('button');
+
+toggleCalc.onclick = () => {
+  calculator.style.display = calculator.style.display === 'block' ? 'none' : 'block';
+};
+
+let calcValue = '';
+
+calcButtons.forEach(btn => {
+  btn.onclick = () => {
+    const val = btn.textContent;
+    if (val === 'C') {
+      calcValue = '';
+    } else if (val === '←') {
+      calcValue = calcValue.slice(0, -1);
+    } else if (val === '=') {
+      try {
+        calcValue = eval(calcValue).toString();
+      } catch {
+        calcValue = '錯誤';
+      }
+    } else {
+      calcValue += val;
+    }
+    calcDisplay.value = calcValue;
+  };
+});
 </script>
-</head>
 
-<body>
-  <header>
-    <h1>簡易記帳</h1>
-    <div>餘額：<span id="balance">0</span> 元</div>
-  </header>
-
-  <main>
-    <section id="add-section">
-      <h2>新增記帳</h2>
-      <input type="text" id="name" placeholder="花費名稱" />
-      <input type="number" id="amount" placeholder="金額" />
-      <input type="text" id="note" placeholder="備註" />
-      <button id="add-btn">新增</button>
-    </section>
-
-    <section id="history-section">
-      <h2>記帳紀錄</h2>
-      <select id="month-select"></select>
-      <div id="history"></div>
-    </section>
-
-    <section id="settings-section">
-      <h2>設定</h2>
-      <input type="number" id="initial-funds" placeholder="新增資金" />
-      <button id="add-funds-btn">新增資金</button>
-    </section>
-  </main>
-
-<script src="app.js"></script>
 </body>
 </html>
